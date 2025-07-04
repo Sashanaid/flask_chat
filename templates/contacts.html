@@ -1,0 +1,276 @@
+{% extends "base.html" %}
+
+{% block title %}Чаты{% endblock %}
+
+{% block content %}
+<body data-current-user-id="{{ current_user.id if current_user.is_authenticated else '' }}">
+<div class="container-fluid h-100">
+    <div class="row h-100">
+        <!-- Список чатов -->
+        <div class="col-md-4 p-0 border-end">
+            <div class="d-flex flex-column h-100">
+                <div class="p-3 border-bottom">
+                    <h4>Чаты</h4>
+                </div>
+                <div class="flex-grow-1 overflow-auto">
+                    <ul class="list-group list-group-flush" id="chats-list">
+                        {% for chat in chats %}
+                        <li class="list-group-item list-group-item-action chat-item {% if initial_chat and initial_chat.type == chat.type and initial_chat.id == chat.id %}active{% endif %}" 
+                            data-chat-type="{{ chat.type }}" 
+                            data-chat-id="{{ chat.id }}">
+                            <div class="d-flex align-items-center">
+                                <img src="https://via.placeholder.com/50" 
+                                     class="rounded-circle me-3" 
+                                     alt="{{ chat.username }}">
+                                <div>
+                                    <h6 class="mb-0">{{ chat.username }}</h6>
+                                    <small class="text-muted last-message">...</small>
+                                </div>
+                            </div>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Область чата -->
+        <div class="col-md-8 p-0">
+            <div class="d-flex flex-column h-100">
+                <!-- Заголовок чата -->
+                <div class="p-3 border-bottom text-center" id="chat-header">
+                    <h5 class="mb-0">Выберите чат</h5>
+                </div>
+                
+                <!-- Область сообщений -->
+                <div class="flex-grow-1 overflow-auto p-3" id="chat-messages">
+                    <div class="text-center text-muted my-5">
+                        <i class="bi bi-chat-square-text" style="font-size: 3rem;"></i>
+                        <p class="mt-2">Выберите чат для начала общения</p>
+                    </div>
+                </div>
+                
+                <!-- Поле ввода (изначально скрыто) -->
+                <div class="p-3 border-top" id="chat-input">
+                    <form id="message-form">
+                        <input type="hidden" id="chat-type">
+                        <input type="hidden" id="chat-id">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="message-text" 
+                                placeholder="Введите сообщение..." disabled>
+                            <button class="btn btn-primary" type="submit" id="send-button" disabled>
+                                <i class="bi bi-send"></i> Отправить
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const currentUserId = parseInt(document.body.dataset.currentUserId || '0');
+    const messageInput = document.getElementById('message-text');
+    const sendButton = document.getElementById('send-button');
+    let currentChat = null;
+
+    // Функция активации формы
+    function activateChatForm(active = true) {
+        messageInput.disabled = !active;
+        sendButton.disabled = !active;
+        if (active) {
+            messageInput.focus();
+        }
+    }
+
+    // Функция загрузки чата
+    function loadChat(chatType, chatId, chatName) {
+        currentChat = { type: chatType, id: chatId, name: chatName };
+        
+        // Обновляем интерфейс
+        document.getElementById('chat-header').innerHTML = `<h5>${chatName}</h5>`;
+        document.getElementById('chat-type').value = chatType;
+        document.getElementById('chat-id').value = chatId;
+        
+        // Активируем форму
+        activateChatForm(true);
+        
+        // Загрузка сообщений
+        fetch(`/get_chat_messages/${chatType}/${chatId}`)
+            .then(response => {
+                if (!response.ok) throw new Error('Network response was not ok');
+                return response.json();
+            })
+            .then(messages => {
+                const container = document.getElementById('chat-messages');
+                container.innerHTML = '';
+                
+                if (!messages || messages.length === 0) {
+                    container.innerHTML = '<div class="no-messages">Нет сообщений</div>';
+                    return;
+                }
+                
+                messages.reverse().forEach(msg => {
+                    const isMe = msg.sender_id === currentUserId;
+                    container.innerHTML += `
+                        <div class="message ${isMe ? 'sent' : 'received'}">
+                            <div class="message-content">
+                                ${msg.message}
+                                <div class="message-time">
+                                    ${new Date(msg.timestamp).toLocaleTimeString()}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                container.scrollTop = container.scrollHeight;
+            })
+            .catch(error => {
+                console.error('Error loading messages:', error);
+                const container = document.getElementById('chat-messages');
+                container.innerHTML = `
+                    <div class="alert alert-danger">
+                        Ошибка загрузки: ${error.message}
+                    </div>
+                `;
+            });
+    }
+
+    // Обработчик клика по чату
+    document.querySelectorAll('.chat-item').forEach(item => {
+        item.addEventListener('click', function() {
+            // Убираем активный класс у всех чатов
+            document.querySelectorAll('.chat-item').forEach(i => i.classList.remove('active'));
+            // Добавляем активный класс текущему чату
+            this.classList.add('active');
+            
+            const chatType = this.dataset.chatType;
+            const chatId = this.dataset.chatId;
+            const chatName = this.querySelector('h6').textContent;
+            
+            loadChat(chatType, chatId, chatName);
+        });
+    });
+
+    // Обработчик отправки сообщения
+    document.getElementById('message-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        if (!currentChat || messageInput.disabled) return;
+        
+        const message = messageInput.value.trim();
+        if (!message) return;
+        
+        // Временно деактивируем форму
+        activateChatForm(false);
+        
+        fetch('/send_message', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                chat_type: currentChat.type,
+                chat_id: currentChat.id,
+                message: message
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                messageInput.value = '';
+                loadChat(currentChat.type, currentChat.id, currentChat.name);
+            } else {
+                activateChatForm(true);
+                alert('Ошибка: ' + (data.message || 'неизвестная ошибка'));
+            }
+        })
+        .catch(error => {
+            activateChatForm(true);
+            console.error('Ошибка:', error);
+        });
+    });
+
+    // Загрузка начального чата, если он указан
+    const container = document.getElementById('chat-container');
+    const chatType = container.dataset.initialChatType;
+    const chatId = container.dataset.initialChatId;
+    
+    if (chatType && chatId) {
+        const chatItem = document.querySelector(`.chat-item[data-chat-type="${chatType}"][data-chat-id="${chatId}"]`);
+        if (chatItem) {
+            const chatName = chatItem.querySelector('h6').textContent;
+            loadChat(chatType, chatId, chatName);
+        }
+    }
+});
+</script>
+
+<style>
+.chat-item {
+    transition: background-color 0.2s;
+    cursor: pointer;
+}
+
+.chat-item:hover {
+    background-color: #f8f9fa;
+}
+
+.chat-item.active {
+    background-color: #0d6efd;
+    color: white;
+}
+
+#chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.message {
+    max-width: 80%;
+    padding: 10px 15px;
+    border-radius: 18px;
+    word-wrap: break-word;
+}
+
+.message.sent {
+    align-self: flex-end;
+    background-color: #dcf8c6;
+    border-bottom-right-radius: 0;
+}
+
+.message.received {
+    align-self: flex-start;
+    background-color: #ffffff;
+    border-bottom-left-radius: 0;
+    border: 1px solid #dee2e6;
+}
+
+.message-time {
+    font-size: 0.75rem;
+    color: #6c757d;
+    margin-top: 5px;
+    text-align: right;
+}
+
+.no-messages {
+    text-align: center;
+    color: #6c757d;
+    padding: 20px;
+}
+
+#message-text:disabled, 
+#send-button:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+</style>
+</body>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 text-center">
+        <h1 class="display-4">Welcome to Flask Messenger</h1>
+        <p class="lead">A simple messaging app built with Flask and MySQL</p>
+        {% if not current_user.is_authenticated %}
+        <div class="mt-4">
+            <a href="{{ url_for('login') }}" class="btn btn-primary btn-lg mx-2">Login</a>
+            <a href="{{ url_for('register') }}" class="btn btn-outline-primary btn-lg mx-2">Register</a>
+        </div>
+        {% else %}
+        <div class="mt-4">
+            <a href="{{ url_for('chat') }}" class="btn btn-primary btn-lg">Go to Chat</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+/* Общие стили для сообщений (могут использоваться на других страницах) */
+.message {
+    margin-bottom: 15px;
+    padding: 10px;
+    border-radius: 5px;
+    max-width: 70%;
+}
+
+.message.sent {
+    background-color: #007bff;
+    color: rgb(0, 0, 0);
+    margin-left: auto;
+}
+
+.message.received {
+    background-color: #e9ecef;
+    margin-right: auto;
+}
+
+.message-header {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    margin-bottom: 5px;
+}
+
+.message.sent .message-header {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.message-body {
+    word-wrap: break-word;
+}
+
+/* Стили для групп (могут использоваться на других страницах) */
+.group-card {
+    transition: all 0.2s ease;
+}
+
+.group-card:hover {
+    transform: translateX(5px);
+}
+
+.group-badge {
+    font-size: 0.8rem;
+    margin-left: 5px;
+}
